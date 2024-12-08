@@ -33,27 +33,34 @@ pub enum JupiterError {
 async fn check_status_code_and_deserialize<T: DeserializeOwned>(
     response: Response,
 ) -> Result<T, JupiterError> {
-    if !response.status().is_success() {
+    let status = response.status();
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| JupiterError::RequestFailed {
+            status_code: status,
+            msg: e.to_string(),
+        })?;
+
+    if !status.is_success() {
+        let msg = String::from_utf8_lossy(&bytes).to_string();
         return Err(JupiterError::RequestFailed {
-            status_code: response.status(),
-            msg: response.text().await.unwrap_or_default(),
+            status_code: status,
+            msg,
         });
     }
 
-    let json_value =
-        response
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| JupiterError::RequestFailed {
-                status_code: response.status(),
-                msg: e.to_string(),
-            })?;
+    let json_value: serde_json::Value =
+        serde_json::from_slice(&bytes).map_err(|e| JupiterError::RequestFailed {
+            status_code: status,
+            msg: e.to_string(),
+        })?;
 
-    if let Some(error_msg) = json_value["error"].as_str() {
-        let error_code = json_value["errorCode"]
-            .as_str()
-            .unwrap_or_default()
-            .to_string();
+    if let Some(error_msg) = json_value.get("error").and_then(|v| v.as_str()) {
+        let error_code = json_value
+            .get("errorCode")
+            .map(|v| v.to_string()) // 不论其原始类型，将其转成字符串
+            .unwrap_or_default();
 
         return Err(JupiterError::ApiError {
             code: error_code,
@@ -62,7 +69,7 @@ async fn check_status_code_and_deserialize<T: DeserializeOwned>(
     }
 
     serde_json::from_value(json_value).map_err(|e| JupiterError::RequestFailed {
-        status_code: response.status(),
+        status_code: status,
         msg: e.to_string(),
     })
 }
