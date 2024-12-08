@@ -42,13 +42,13 @@ async fn check_status_code_and_deserialize<T: DeserializeOwned>(
             msg: e.to_string(),
         })?;
 
-    if !status.is_success() {
-        let msg = String::from_utf8_lossy(&bytes).to_string();
-        return Err(JupiterError::RequestFailed {
-            status_code: status,
-            msg,
-        });
-    }
+    // if !status.is_success() {
+    //     let msg = String::from_utf8_lossy(&bytes).to_string();
+    //     return Err(JupiterError::RequestFailed {
+    //         status_code: status,
+    //         msg,
+    //     });
+    // }
 
     let json_value: serde_json::Value =
         serde_json::from_slice(&bytes).map_err(|e| JupiterError::RequestFailed {
